@@ -13,7 +13,6 @@ use rustls::{
 use rustls::SignatureScheme;
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /* ---------- accept-all RPK verifier ---------- */
 #[derive(Debug)]

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use hex::encode as hex_encode;
-use quinn::{Endpoint, Incoming};
+use quinn::Endpoint;
 use quinn::crypto::rustls::QuicServerConfig;
 use rcgen::KeyPair;
 use rustls::{
@@ -12,7 +12,6 @@ use rustls::{
 };
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /* ---------- helper: build a single Raw-Public-Key CertifiedKey ---------- */
 fn make_rpk() -> Arc<CertifiedKey> {
@@ -85,7 +84,7 @@ async fn main() -> Result<()> {
         .with_client_cert_verifier(Arc::new(AcceptAnyClient))
         .with_cert_resolver(Arc::new(OneRpk(server_rpk)));
     let crypto = QuicServerConfig::try_from(Arc::new(tls)).unwrap();
-    let mut cfg = quinn::ServerConfig::with_crypto(Arc::new(crypto));
+    let cfg = quinn::ServerConfig::with_crypto(Arc::new(crypto));
 
     /* bind endpoint */
     let endpoint = Endpoint::server(cfg, addr)?;
