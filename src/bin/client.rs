@@ -48,7 +48,7 @@ impl ServerCertVerifier for AcceptAny {
     }
 }
 
-/* ---------- helper to build our own RPK (only needed for mutual auth) ---------- */
+/* ---------- helper to build our own RPK (needed for mutual auth) ---------- */
 fn make_rpk() -> Arc<CertifiedKey> {
     let kp = KeyPair::generate().unwrap();
     let spki = CertificateDer::from(kp.public_key_der());
@@ -57,15 +57,35 @@ fn make_rpk() -> Arc<CertifiedKey> {
     Arc::new(CertifiedKey::new(vec![spki], sk))
 }
 
+/* ---------- trivial resolver that always returns our client key ---------- */
+#[derive(Debug)]
+struct OneRpk(Arc<CertifiedKey>);
+impl rustls::client::ResolvesClientCert for OneRpk {
+    fn resolve(
+        &self,
+        _acceptable_issuers: &[&[u8]],
+        _sigschemes: &[SignatureScheme],
+    ) -> Option<Arc<CertifiedKey>> {
+        Some(self.0.clone())
+    }
+    fn has_certs(&self) -> bool {
+        true
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let server_addr: SocketAddr = "127.0.0.1:4433".parse()?;
 
-    /* rustls client: trust ANY RPK (AcceptAny) */
+    // Generate our client RPK
+    let client_rpk = make_rpk();
+    println!("client ‣ my id {}", hex_encode(Sha256::digest(&client_rpk.cert[0])));
+
+    /* rustls client: trust ANY RPK (AcceptAny) and send our own RPK */
     let tls = ClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(AcceptAny))
-        .with_no_client_auth();                       // not sending a client key
+        .with_client_cert_resolver(Arc::new(OneRpk(client_rpk)));
 
     let crypto = QuicClientConfig::try_from(Arc::new(tls))?;
     let cfg = quinn::ClientConfig::new(Arc::new(crypto));
@@ -84,7 +104,7 @@ async fn main() -> Result<()> {
     }
 
     let (mut send, mut recv) = conn.open_bi().await?;
-    send.write_all(b"hello raw-key quic").await?;
+    send.write_all(b"hello mutual rpk quic").await?;
     send.finish().unwrap();
     let echoed = recv.read_to_end(usize::MAX).await?;
     println!("client ‣ echoed: {}", String::from_utf8_lossy(&echoed));
