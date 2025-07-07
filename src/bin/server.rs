@@ -15,7 +15,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 /* ---------- helper: build a single Raw-Public-Key CertifiedKey ---------- */
 fn make_rpk() -> Arc<CertifiedKey> {
-    let kp = KeyPair::generate().unwrap();                      // Ed25519
+    let kp = KeyPair::generate().unwrap();
     let spki = CertificateDer::from(kp.public_key_der());
     let sk: Arc<dyn SigningKey> =
         any_supported_type(&PrivateKeyDer::Pkcs8(kp.serialize_der().into())).unwrap();
@@ -67,7 +67,7 @@ impl ClientCertVerifier for AcceptAnyClient {
         &[]
     }
     fn client_auth_mandatory(&self) -> bool {
-        true  // Require client authentication
+        true
     }
 }
 
