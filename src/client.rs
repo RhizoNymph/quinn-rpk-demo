@@ -17,6 +17,21 @@ use std::path::Path;
 use crate::common::make_rpk;
 
 #[derive(Debug)]
+struct OneRpk(Arc<CertifiedKey>);
+impl rustls::client::ResolvesClientCert for OneRpk {
+    fn resolve(
+        &self,
+        _acceptable_issuers: &[&[u8]],
+        _sigschemes: &[SignatureScheme],
+    ) -> Option<Arc<CertifiedKey>> {
+        Some(self.0.clone())
+    }
+    fn has_certs(&self) -> bool {
+        true
+    }
+}
+
+#[derive(Debug)]
 struct AcceptAny;
 impl ServerCertVerifier for AcceptAny {
     fn verify_server_cert(
@@ -43,21 +58,6 @@ impl ServerCertVerifier for AcceptAny {
         vec![
             SignatureScheme::ED25519
         ]
-    }
-}
-
-#[derive(Debug)]
-struct OneRpk(Arc<CertifiedKey>);
-impl rustls::client::ResolvesClientCert for OneRpk {
-    fn resolve(
-        &self,
-        _acceptable_issuers: &[&[u8]],
-        _sigschemes: &[SignatureScheme],
-    ) -> Option<Arc<CertifiedKey>> {
-        Some(self.0.clone())
-    }
-    fn has_certs(&self) -> bool {
-        true
     }
 }
 
