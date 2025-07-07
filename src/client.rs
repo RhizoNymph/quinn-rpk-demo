@@ -16,7 +16,6 @@ use std::path::Path;
 
 use crate::common::make_rpk;
 
-/* ---------- accept-all RPK verifier ---------- */
 #[derive(Debug)]
 struct AcceptAny;
 impl ServerCertVerifier for AcceptAny {
@@ -42,14 +41,11 @@ impl ServerCertVerifier for AcceptAny {
     }
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         vec![
-            SignatureScheme::ED25519,     // ← key one!
-            SignatureScheme::RSA_PSS_SHA256,
-            SignatureScheme::ECDSA_NISTP256_SHA256,
+            SignatureScheme::ED25519
         ]
     }
 }
 
-/* ---------- trivial resolver that always returns our client key ---------- */
 #[derive(Debug)]
 struct OneRpk(Arc<CertifiedKey>);
 impl rustls::client::ResolvesClientCert for OneRpk {
@@ -66,11 +62,9 @@ impl rustls::client::ResolvesClientCert for OneRpk {
 }
 
 pub async fn run_client(server_addr: SocketAddr, key_path: Option<&Path>, cert_path: Option<&Path>) -> Result<()> {
-    // Generate our client RPK
     let client_rpk = make_rpk(key_path, cert_path, "client.key", "client.crt")?;
     println!("client ‣ my id {}", hex_encode(Sha256::digest(&client_rpk.cert[0])));
 
-    /* rustls client: trust ANY RPK (AcceptAny) and send our own RPK */
     let tls = ClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(AcceptAny))
