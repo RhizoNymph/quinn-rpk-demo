@@ -1,9 +1,9 @@
 use rcgen::KeyPair;
 use rcgen::PKCS_ED25519;
 use rustls::{
-    pki_types::{CertificateDer, PrivateKeyDer},
+    pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
     sign::{CertifiedKey, SigningKey},
-    crypto::ring::sign::any_supported_type,
+    crypto::ring::sign::any_eddsa_type,
 };
 use std::sync::Arc;
 use std::fs;
@@ -53,7 +53,8 @@ pub fn make_rpk(
     
     let kp = KeyPair::generate_for(&PKCS_ED25519).context("Failed to generate ED25519 keypair")?;
     let spki = CertificateDer::from(kp.public_key_der());
-    let sk: Arc<dyn SigningKey> = any_supported_type(&PrivateKeyDer::Pkcs8(kp.serialize_der().into()))
+    let pkcs8_key = PrivatePkcs8KeyDer::from(kp.serialize_der());
+    let sk: Arc<dyn SigningKey> = any_eddsa_type(&pkcs8_key)
         .context("Failed to create signing key")?;
     let rpk = Arc::new(CertifiedKey::new(vec![spki.clone()], sk));
     
@@ -69,8 +70,14 @@ fn load_rpk_from_files(key_file: &Path, cert_file: &Path) -> Result<Arc<Certifie
     
     let cert_der = fs::read(cert_file)
         .with_context(|| format!("Failed to read cert file: {}", cert_file.display()))?;
+        
+    let private_key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_der));
+    let pkcs8_key = match private_key {
+        PrivateKeyDer::Pkcs8(pkcs8) => pkcs8,
+        _ => return Err(anyhow::anyhow!("Ed25519 keys must be in PKCS8 format")),
+    };
     
-    let sk: Arc<dyn SigningKey> = any_supported_type(&PrivateKeyDer::Pkcs8(key_der.into()))
+    let sk: Arc<dyn SigningKey> = any_eddsa_type(&pkcs8_key)
         .context("Failed to create signing key from loaded key")?;
     
     let cert = CertificateDer::from(cert_der);
