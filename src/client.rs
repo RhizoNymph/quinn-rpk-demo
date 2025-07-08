@@ -1,13 +1,16 @@
 use anyhow::Result;
 use hex::encode as hex_encode;
-use quinn::{Endpoint};
+use quinn::{Endpoint, ClientConfig as QuinnClientConfig};
 use quinn::crypto::rustls::QuicClientConfig;
 
 use rustls::{
-    client::danger::{ServerCertVerified, ServerCertVerifier},
-    pki_types::{CertificateDer},
+    client::{
+        danger::{ServerCertVerified, ServerCertVerifier, HandshakeSignatureValid},
+        ResolvesClientCert,
+    },
+    pki_types::{CertificateDer, ServerName, UnixTime},
     sign::{CertifiedKey},
-    ClientConfig,
+    ClientConfig, Error as RustlsError, DigitallySignedStruct,
 };
 use rustls::SignatureScheme;
 use sha2::{Digest, Sha256};
@@ -18,7 +21,7 @@ use crate::common::make_rpk;
 
 #[derive(Debug)]
 struct OneRpk(Arc<CertifiedKey>);
-impl rustls::client::ResolvesClientCert for OneRpk {
+impl ResolvesClientCert for OneRpk {
     fn resolve(
         &self,
         _acceptable_issuers: &[&[u8]],
@@ -38,21 +41,21 @@ impl ServerCertVerifier for AcceptAny {
         &self,
         _ee: &CertificateDer,
         _ints: &[CertificateDer],
-        _name: &rustls::pki_types::ServerName,
+        _name: &ServerName,
         _ocsp: &[u8],
-        _now: rustls::pki_types::UnixTime,
-    ) -> Result<ServerCertVerified, rustls::Error> {
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, RustlsError> {
         Ok(ServerCertVerified::assertion())
     }
     fn verify_tls12_signature(
-        &self, _m: &[u8], _c: &CertificateDer, _d: &rustls::DigitallySignedStruct
-    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+        &self, _m: &[u8], _c: &CertificateDer, _d: &DigitallySignedStruct
+    ) -> Result<HandshakeSignatureValid, RustlsError> {
+        Ok(HandshakeSignatureValid::assertion())
     }
     fn verify_tls13_signature(
-        &self, _m: &[u8], _c: &CertificateDer, _d: &rustls::DigitallySignedStruct
-    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+        &self, _m: &[u8], _c: &CertificateDer, _d: &DigitallySignedStruct
+    ) -> Result<HandshakeSignatureValid, RustlsError> {
+        Ok(HandshakeSignatureValid::assertion())
     }
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         vec![
@@ -71,7 +74,7 @@ pub async fn run_client(server_addr: SocketAddr, key_path: Option<&Path>, cert_p
         .with_client_cert_resolver(Arc::new(OneRpk(client_rpk)));
 
     let crypto = QuicClientConfig::try_from(Arc::new(tls))?;
-    let cfg = quinn::ClientConfig::new(Arc::new(crypto));
+    let cfg = QuinnClientConfig::new(Arc::new(crypto));
 
     let mut ep = Endpoint::client("[::]:0".parse()?)?;
     ep.set_default_client_config(cfg);

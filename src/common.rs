@@ -8,7 +8,7 @@ use rustls::{
 use std::sync::Arc;
 use std::fs;
 use std::path::Path;
-use anyhow::{Result, Context};
+use anyhow::{anyhow, Result, Context};
 
 pub fn make_rpk(
     key_path: Option<&Path>, 
@@ -43,7 +43,7 @@ pub fn make_rpk(
                 }
             }
         } else {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "Specified key or cert file does not exist: {} or {}", 
                 key_file.display(), 
                 cert_file.display()
@@ -74,7 +74,7 @@ fn load_rpk_from_files(key_file: &Path, cert_file: &Path) -> Result<Arc<Certifie
     let private_key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_der));
     let pkcs8_key = match private_key {
         PrivateKeyDer::Pkcs8(pkcs8) => pkcs8,
-        _ => return Err(anyhow::anyhow!("Ed25519 keys must be in PKCS8 format")),
+        _ => return Err(anyhow!("Ed25519 keys must be in PKCS8 format")),
     };
     
     let sk: Arc<dyn SigningKey> = any_eddsa_type(&pkcs8_key)

@@ -1,13 +1,14 @@
 use anyhow::Result;
 use hex::encode as hex_encode;
-use quinn::Endpoint;
+use quinn::{Endpoint, ServerConfig as QuinnServerConfig};
 use quinn::crypto::rustls::QuicServerConfig;
 
 use rustls::{
-    pki_types::{CertificateDer},
+    pki_types::{CertificateDer, UnixTime},
     sign::{CertifiedKey},
-    server::{ResolvesServerCert, ServerConfig, danger::{ClientCertVerified, ClientCertVerifier}},
-    SignatureScheme,
+    server::{ResolvesServerCert, ServerConfig, ClientHello, danger::{ClientCertVerified, ClientCertVerifier}},
+    client::danger::HandshakeSignatureValid,
+    SignatureScheme, Error, DistinguishedName, DigitallySignedStruct,
 };
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc, path::Path};
@@ -19,7 +20,7 @@ struct OneRpk(Arc<CertifiedKey>);
 impl ResolvesServerCert for OneRpk {
     fn resolve(
         &self,
-        _client_hello: rustls::server::ClientHello,
+        _client_hello: ClientHello,
     ) -> Option<Arc<CertifiedKey>> {
         Some(self.0.clone())
     }
@@ -32,26 +33,26 @@ impl ClientCertVerifier for AcceptAnyClient {
         &self,
         _end_entity: &CertificateDer,
         _intermediates: &[CertificateDer],
-        _now: rustls::pki_types::UnixTime,
-    ) -> Result<ClientCertVerified, rustls::Error> {
+        _now: UnixTime,
+    ) -> Result<ClientCertVerified, Error> {
         Ok(ClientCertVerified::assertion())
     }
     fn verify_tls12_signature(
-        &self, _message: &[u8], _cert: &CertificateDer, _dss: &rustls::DigitallySignedStruct
-    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+        &self, _message: &[u8], _cert: &CertificateDer, _dss: &DigitallySignedStruct
+    ) -> Result<HandshakeSignatureValid, Error> {
+        Ok(HandshakeSignatureValid::assertion())
     }
     fn verify_tls13_signature(
-        &self, _message: &[u8], _cert: &CertificateDer, _dss: &rustls::DigitallySignedStruct
-    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+        &self, _message: &[u8], _cert: &CertificateDer, _dss: &DigitallySignedStruct
+    ) -> Result<HandshakeSignatureValid, Error> {
+        Ok(HandshakeSignatureValid::assertion())
     }
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         vec![
             SignatureScheme::ED25519
         ]
     }
-    fn root_hint_subjects(&self) -> &[rustls::DistinguishedName] {
+    fn root_hint_subjects(&self) -> &[DistinguishedName] {
         &[]
     }
     fn client_auth_mandatory(&self) -> bool {
@@ -67,7 +68,7 @@ pub async fn run_server(listen_addr: SocketAddr, key_path: Option<&Path>, cert_p
         .with_client_cert_verifier(Arc::new(AcceptAnyClient))
         .with_cert_resolver(Arc::new(OneRpk(server_rpk)));
     let crypto = QuicServerConfig::try_from(Arc::new(tls)).unwrap();
-    let cfg = quinn::ServerConfig::with_crypto(Arc::new(crypto));
+    let cfg = QuinnServerConfig::with_crypto(Arc::new(crypto));
 
     let endpoint = Endpoint::server(cfg, listen_addr)?;
     println!("server listening on {listen_addr}");
