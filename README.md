@@ -29,6 +29,7 @@ both of these support:
 --key <PATH> --cert <PATH>
 ```
 ## Code Overview
+This is a brief overview of the code structure to make reading it easier, but you should really read the code. The whole point of this repo is to demonstrate how to write the code to do this.
 
 ### Common
 The client and server implementations share a common make_rpk function that takes in options for the key path and cert path if files exist at these paths. If these arguments aren't passed in, it will generate new keypairs for server or client depending on the caller of the function (make_rpk accepts default key and cert path which are set by client and server when calling). 
