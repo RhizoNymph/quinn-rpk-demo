@@ -59,8 +59,7 @@ impl ClientCertVerifier for AcceptAnyClient {
     }
 }
 
-pub async fn run_server(listen_addr: SocketAddr, key_path: Option<&Path>, cert_path: Option<&Path>) -> Result<()> {
-    // Generate our server RPK
+pub async fn run_server(listen_addr: SocketAddr, key_path: Option<&Path>, cert_path: Option<&Path>) -> Result<()> {    
     let server_rpk = make_rpk(key_path, cert_path, "server.key", "server.crt")?;
     println!("server ‣ my id {}", hex_encode(Sha256::digest(&server_rpk.cert[0])));
     
