@@ -28,6 +28,23 @@ both of these support:
 ```
 --key <PATH> --cert <PATH>
 ```
+
+After running the server then the client, you should get something like this on the server side:
+```
+Server mode
+Generated and saved new ED25519 RPK to server.key and server.crt
+server ‣ my id 7716db8efba7f4fba29e771b987d0cbc30ed11a7f300fa4779a8c7dfc6f78041
+server listening on 127.0.0.1:4433
+server ‣ client id 36109de5804374945cf59e8963b3dde254f7952821413fd5e396f3e0f540b589
+```
+and this on the client side:
+```
+Client mode
+Generated and saved new ED25519 RPK to client.key and client.crt
+client ‣ my id 36109de5804374945cf59e8963b3dde254f7952821413fd5e396f3e0f540b589
+client ‣ server id 7716db8efba7f4fba29e771b987d0cbc30ed11a7f300fa4779a8c7dfc6f78041
+client ‣ echoed: hello mutual rpk quic
+```
 ## Code Overview
 This is a brief overview of the code structure to make reading it easier, but you should really read the code. The whole point of this repo is to demonstrate how to write the code to do this.
 
