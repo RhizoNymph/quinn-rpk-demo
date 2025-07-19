@@ -1,6 +1,6 @@
 use rcgen::KeyPair;
 use rcgen::PKCS_ED25519;
-// use rustls::pki_types::alg_id::ED25519;
+
 use rustls::{
     pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
     sign::{CertifiedKey, SigningKey},

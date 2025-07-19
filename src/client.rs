@@ -7,12 +7,11 @@ use rustls::pki_types::SubjectPublicKeyInfoDer;
 use rustls::{
     Error::PeerIncompatible as PeerIncompatibleError,
     client::{
-        ResolvesClientCert, AlwaysResolvesClientRawPublicKeys,
+        AlwaysResolvesClientRawPublicKeys,
         danger::{ServerCertVerified, ServerCertVerifier, HandshakeSignatureValid},        
     },
     pki_types::{CertificateDer, ServerName, UnixTime},
-    crypto::verify_tls13_signature_with_raw_key,
-    sign::{CertifiedKey},
+    crypto::verify_tls13_signature_with_raw_key,    
     ClientConfig, Error as RustlsError, DigitallySignedStruct, PeerIncompatible,
 };
 use rustls::SignatureScheme;

@@ -8,8 +8,7 @@ use rustls::pki_types::SubjectPublicKeyInfoDer;
 use rustls::{
     Error::PeerIncompatible as PeerIncompatibleError,
     pki_types::{CertificateDer, UnixTime},
-    sign::{CertifiedKey},
-    server::{ResolvesServerCert, ServerConfig, ClientHello, AlwaysResolvesServerRawPublicKeys, danger::{ClientCertVerified, ClientCertVerifier}},
+    server::{ServerConfig, AlwaysResolvesServerRawPublicKeys, danger::{ClientCertVerified, ClientCertVerifier}},
     client::danger::HandshakeSignatureValid,
     SignatureScheme, Error, DistinguishedName, DigitallySignedStruct, PeerIncompatible,
 };
