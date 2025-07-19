@@ -4,11 +4,12 @@ use quinn::{Endpoint, ServerConfig as QuinnServerConfig};
 use quinn::crypto::rustls::QuicServerConfig;
 
 use rustls::{
+    Error::PeerIncompatible as PeerIncompatibleError,
     pki_types::{CertificateDer, UnixTime},
     sign::{CertifiedKey},
     server::{ResolvesServerCert, ServerConfig, ClientHello, AlwaysResolvesServerRawPublicKeys, danger::{ClientCertVerified, ClientCertVerifier}},
     client::danger::HandshakeSignatureValid,
-    SignatureScheme, Error, DistinguishedName, DigitallySignedStruct,
+    SignatureScheme, Error, DistinguishedName, DigitallySignedStruct, PeerIncompatible,
 };
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc, path::Path};
@@ -29,7 +30,9 @@ impl ClientCertVerifier for AcceptAnyClient {
     fn verify_tls12_signature(
         &self, _message: &[u8], _cert: &CertificateDer, _dss: &DigitallySignedStruct
     ) -> Result<HandshakeSignatureValid, Error> {
-        Ok(HandshakeSignatureValid::assertion())
+        Err(PeerIncompatibleError(
+            PeerIncompatible::Tls13RequiredForQuic
+        ))
     }
     fn verify_tls13_signature(
         &self, _message: &[u8], _cert: &CertificateDer, _dss: &DigitallySignedStruct

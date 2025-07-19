@@ -4,13 +4,14 @@ use quinn::{Endpoint, ClientConfig as QuinnClientConfig};
 use quinn::crypto::rustls::QuicClientConfig;
 
 use rustls::{
+    Error::PeerIncompatible as PeerIncompatibleError,
     client::{
         ResolvesClientCert, AlwaysResolvesClientRawPublicKeys,
         ResolvesClientCert,
     },
     pki_types::{CertificateDer, ServerName, UnixTime},
     sign::{CertifiedKey},
-    ClientConfig, Error as RustlsError, DigitallySignedStruct,
+    ClientConfig, Error as RustlsError, DigitallySignedStruct, PeerIncompatible,
 };
 use rustls::SignatureScheme;
 use sha2::{Digest, Sha256};
@@ -50,7 +51,9 @@ impl ServerCertVerifier for AcceptAny {
     fn verify_tls12_signature(
         &self, _m: &[u8], _c: &CertificateDer, _d: &DigitallySignedStruct
     ) -> Result<HandshakeSignatureValid, RustlsError> {
-        Ok(HandshakeSignatureValid::assertion())
+        Err(PeerIncompatibleError(
+            PeerIncompatible::Tls13RequiredForQuic
+        ))
     }
     fn verify_tls13_signature(
         &self, _m: &[u8], _c: &CertificateDer, _d: &DigitallySignedStruct
