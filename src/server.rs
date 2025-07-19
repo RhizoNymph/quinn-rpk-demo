@@ -6,25 +6,14 @@ use quinn::crypto::rustls::QuicServerConfig;
 use rustls::{
     pki_types::{CertificateDer, UnixTime},
     sign::{CertifiedKey},
-    server::{ResolvesServerCert, ServerConfig, ClientHello, danger::{ClientCertVerified, ClientCertVerifier}},
+    server::{ResolvesServerCert, ServerConfig, ClientHello, AlwaysResolvesServerRawPublicKeys, danger::{ClientCertVerified, ClientCertVerifier}},
     client::danger::HandshakeSignatureValid,
     SignatureScheme, Error, DistinguishedName, DigitallySignedStruct,
 };
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc, path::Path};
 
-use crate::common::make_rpk;
-
-#[derive(Debug)]
-struct OneRpk(Arc<CertifiedKey>);
-impl ResolvesServerCert for OneRpk {
-    fn resolve(
-        &self,
-        _client_hello: ClientHello,
-    ) -> Option<Arc<CertifiedKey>> {
-        Some(self.0.clone())
-    }
-}
+use crate::common::make_rpk, ED25519_ONLY};
 
 #[derive(Debug)]
 struct AcceptAnyClient;
@@ -66,7 +55,7 @@ pub async fn run_server(listen_addr: SocketAddr, key_path: Option<&Path>, cert_p
     
     let tls = ServerConfig::builder()
         .with_client_cert_verifier(Arc::new(AcceptAnyClient))
-        .with_cert_resolver(Arc::new(OneRpk(server_rpk)));
+        .with_cert_resolver(Arc::new(AlwaysResolvesServerRawPublicKeys::new(server_rpk)));
     let crypto = QuicServerConfig::try_from(Arc::new(tls)).unwrap();
     let cfg = QuinnServerConfig::with_crypto(Arc::new(crypto));
 

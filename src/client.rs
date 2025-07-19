@@ -5,7 +5,7 @@ use quinn::crypto::rustls::QuicClientConfig;
 
 use rustls::{
     client::{
-        danger::{ServerCertVerified, ServerCertVerifier, HandshakeSignatureValid},
+        ResolvesClientCert, AlwaysResolvesClientRawPublicKeys,
         ResolvesClientCert,
     },
     pki_types::{CertificateDer, ServerName, UnixTime},
@@ -71,7 +71,7 @@ pub async fn run_client(server_addr: SocketAddr, key_path: Option<&Path>, cert_p
     let tls = ClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(AcceptAny))
-        .with_client_cert_resolver(Arc::new(OneRpk(client_rpk)));
+        .with_client_cert_resolver(Arc::new(AlwaysResolvesClientRawPublicKeys::new(client_rpk)));
 
     let crypto = QuicClientConfig::try_from(Arc::new(tls))?;
     let cfg = QuinnClientConfig::new(Arc::new(crypto));
