@@ -1,14 +1,22 @@
 use rcgen::KeyPair;
 use rcgen::PKCS_ED25519;
+// use rustls::pki_types::alg_id::ED25519;
 use rustls::{
     pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
     sign::{CertifiedKey, SigningKey},
-    crypto::ring::sign::any_eddsa_type,
+    crypto::{ring::sign::any_eddsa_type, WebPkiSupportedAlgorithms},
+    SignatureScheme,
 };
+use webpki::ring::ED25519;
 use std::sync::Arc;
 use std::fs;
 use std::path::Path;
 use anyhow::{anyhow, Result, Context};
+
+pub static ED25519_ONLY: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
+    all: &[ED25519],
+    mapping: &[(SignatureScheme::ED25519, &[ED25519])]
+};
 
 pub fn make_rpk(
     key_path: Option<&Path>, 
