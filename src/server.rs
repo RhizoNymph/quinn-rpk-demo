@@ -3,6 +3,8 @@ use hex::encode as hex_encode;
 use quinn::{Endpoint, ServerConfig as QuinnServerConfig};
 use quinn::crypto::rustls::QuicServerConfig;
 
+use rustls::crypto::verify_tls13_signature_with_raw_key;
+use rustls::pki_types::SubjectPublicKeyInfoDer;
 use rustls::{
     Error::PeerIncompatible as PeerIncompatibleError,
     pki_types::{CertificateDer, UnixTime},
@@ -14,7 +16,7 @@ use rustls::{
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc, path::Path};
 
-use crate::common::make_rpk, ED25519_ONLY};
+use crate::common::{make_rpk, ED25519_ONLY};
 
 #[derive(Debug)]
 struct AcceptAnyClient;
@@ -37,7 +39,7 @@ impl ClientCertVerifier for AcceptAnyClient {
     fn verify_tls13_signature(
         &self, _message: &[u8], _cert: &CertificateDer, _dss: &DigitallySignedStruct
     ) -> Result<HandshakeSignatureValid, Error> {
-        Ok(HandshakeSignatureValid::assertion())
+        verify_tls13_signature_with_raw_key(_message, &SubjectPublicKeyInfoDer::from(_cert.as_ref()), _dss, &ED25519_ONLY)
     }
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         vec![

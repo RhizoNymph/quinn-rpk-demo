@@ -3,13 +3,15 @@ use hex::encode as hex_encode;
 use quinn::{Endpoint, ClientConfig as QuinnClientConfig};
 use quinn::crypto::rustls::QuicClientConfig;
 
+use rustls::pki_types::SubjectPublicKeyInfoDer;
 use rustls::{
     Error::PeerIncompatible as PeerIncompatibleError,
     client::{
         ResolvesClientCert, AlwaysResolvesClientRawPublicKeys,
-        ResolvesClientCert,
+        danger::{ServerCertVerified, ServerCertVerifier, HandshakeSignatureValid},        
     },
     pki_types::{CertificateDer, ServerName, UnixTime},
+    crypto::verify_tls13_signature_with_raw_key,
     sign::{CertifiedKey},
     ClientConfig, Error as RustlsError, DigitallySignedStruct, PeerIncompatible,
 };
@@ -18,22 +20,7 @@ use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc};
 use std::path::Path;
 
-use crate::common::make_rpk;
-
-#[derive(Debug)]
-struct OneRpk(Arc<CertifiedKey>);
-impl ResolvesClientCert for OneRpk {
-    fn resolve(
-        &self,
-        _acceptable_issuers: &[&[u8]],
-        _sigschemes: &[SignatureScheme],
-    ) -> Option<Arc<CertifiedKey>> {
-        Some(self.0.clone())
-    }
-    fn has_certs(&self) -> bool {
-        true
-    }
-}
+use crate::common::{make_rpk, ED25519_ONLY};
 
 #[derive(Debug)]
 struct AcceptAny;
@@ -58,7 +45,7 @@ impl ServerCertVerifier for AcceptAny {
     fn verify_tls13_signature(
         &self, _m: &[u8], _c: &CertificateDer, _d: &DigitallySignedStruct
     ) -> Result<HandshakeSignatureValid, RustlsError> {
-        Ok(HandshakeSignatureValid::assertion())
+        verify_tls13_signature_with_raw_key(_m, &SubjectPublicKeyInfoDer::from(_c.as_ref()), _d, &ED25519_ONLY)
     }
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         vec![
