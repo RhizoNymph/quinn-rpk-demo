@@ -1,38 +1,26 @@
 use anyhow::Result;
 use hex::encode as hex_encode;
-use quinn::{Endpoint, ClientConfig as QuinnClientConfig};
 use quinn::crypto::rustls::QuicClientConfig;
+use quinn::{ClientConfig as QuinnClientConfig, Endpoint};
 
+use rustls::pki_types::SubjectPublicKeyInfoDer;
+use rustls::SignatureScheme;
 use rustls::{
     client::{
-        danger::{ServerCertVerified, ServerCertVerifier, HandshakeSignatureValid},
-        ResolvesClientCert,
+        danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+        AlwaysResolvesClientRawPublicKeys,
     },
+    crypto::verify_tls13_signature_with_raw_key,
     pki_types::{CertificateDer, ServerName, UnixTime},
-    sign::{CertifiedKey},
-    ClientConfig, Error as RustlsError, DigitallySignedStruct,
+    ClientConfig, DigitallySignedStruct, Error as RustlsError,
+    Error::PeerIncompatible as PeerIncompatibleError,
+    PeerIncompatible,
 };
-use rustls::SignatureScheme;
 use sha2::{Digest, Sha256};
-use std::{net::SocketAddr, sync::Arc};
 use std::path::Path;
+use std::{net::SocketAddr, sync::Arc};
 
-use crate::common::make_rpk;
-
-#[derive(Debug)]
-struct OneRpk(Arc<CertifiedKey>);
-impl ResolvesClientCert for OneRpk {
-    fn resolve(
-        &self,
-        _acceptable_issuers: &[&[u8]],
-        _sigschemes: &[SignatureScheme],
-    ) -> Option<Arc<CertifiedKey>> {
-        Some(self.0.clone())
-    }
-    fn has_certs(&self) -> bool {
-        true
-    }
-}
+use crate::common::{make_rpk, ED25519_ONLY};
 
 #[derive(Debug)]
 struct AcceptAny;
@@ -48,30 +36,51 @@ impl ServerCertVerifier for AcceptAny {
         Ok(ServerCertVerified::assertion())
     }
     fn verify_tls12_signature(
-        &self, _m: &[u8], _c: &CertificateDer, _d: &DigitallySignedStruct
+        &self,
+        _m: &[u8],
+        _c: &CertificateDer,
+        _d: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, RustlsError> {
-        Ok(HandshakeSignatureValid::assertion())
+        Err(PeerIncompatibleError(
+            PeerIncompatible::Tls13RequiredForQuic,
+        ))
     }
     fn verify_tls13_signature(
-        &self, _m: &[u8], _c: &CertificateDer, _d: &DigitallySignedStruct
+        &self,
+        _m: &[u8],
+        _c: &CertificateDer,
+        _d: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, RustlsError> {
-        Ok(HandshakeSignatureValid::assertion())
+        verify_tls13_signature_with_raw_key(
+            _m,
+            &SubjectPublicKeyInfoDer::from(_c.as_ref()),
+            _d,
+            &ED25519_ONLY,
+        )
     }
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        vec![
-            SignatureScheme::ED25519
-        ]
+        vec![SignatureScheme::ED25519]
+    }
+    fn requires_raw_public_keys(&self) -> bool {
+        true
     }
 }
 
-pub async fn run_client(server_addr: SocketAddr, key_path: Option<&Path>, cert_path: Option<&Path>) -> Result<()> {
+pub async fn run_client(
+    server_addr: SocketAddr,
+    key_path: Option<&Path>,
+    cert_path: Option<&Path>,
+) -> Result<()> {
     let client_rpk = make_rpk(key_path, cert_path, "client.key", "client.crt")?;
-    println!("client ‣ my id {}", hex_encode(Sha256::digest(&client_rpk.cert[0])));
+    println!(
+        "client ‣ my id {}",
+        hex_encode(Sha256::digest(&client_rpk.cert[0]))
+    );
 
     let tls = ClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(AcceptAny))
-        .with_client_cert_resolver(Arc::new(OneRpk(client_rpk)));
+        .with_client_cert_resolver(Arc::new(AlwaysResolvesClientRawPublicKeys::new(client_rpk)));
 
     let crypto = QuicClientConfig::try_from(Arc::new(tls))?;
     let cfg = QuinnClientConfig::new(Arc::new(crypto));

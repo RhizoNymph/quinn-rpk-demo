@@ -1,30 +1,25 @@
 use anyhow::Result;
 use hex::encode as hex_encode;
-use quinn::{Endpoint, ServerConfig as QuinnServerConfig};
 use quinn::crypto::rustls::QuicServerConfig;
+use quinn::{Endpoint, ServerConfig as QuinnServerConfig};
 
+use rustls::crypto::verify_tls13_signature_with_raw_key;
+use rustls::pki_types::SubjectPublicKeyInfoDer;
 use rustls::{
-    pki_types::{CertificateDer, UnixTime},
-    sign::{CertifiedKey},
-    server::{ResolvesServerCert, ServerConfig, ClientHello, danger::{ClientCertVerified, ClientCertVerifier}},
     client::danger::HandshakeSignatureValid,
-    SignatureScheme, Error, DistinguishedName, DigitallySignedStruct,
+    pki_types::{CertificateDer, UnixTime},
+    server::{
+        danger::{ClientCertVerified, ClientCertVerifier},
+        AlwaysResolvesServerRawPublicKeys, ServerConfig,
+    },
+    DigitallySignedStruct, DistinguishedName, Error,
+    Error::PeerIncompatible as PeerIncompatibleError,
+    PeerIncompatible, SignatureScheme,
 };
 use sha2::{Digest, Sha256};
-use std::{net::SocketAddr, sync::Arc, path::Path};
+use std::{net::SocketAddr, path::Path, sync::Arc};
 
-use crate::common::make_rpk;
-
-#[derive(Debug)]
-struct OneRpk(Arc<CertifiedKey>);
-impl ResolvesServerCert for OneRpk {
-    fn resolve(
-        &self,
-        _client_hello: ClientHello,
-    ) -> Option<Arc<CertifiedKey>> {
-        Some(self.0.clone())
-    }
-}
+use crate::common::{make_rpk, ED25519_ONLY};
 
 #[derive(Debug)]
 struct AcceptAnyClient;
@@ -38,19 +33,30 @@ impl ClientCertVerifier for AcceptAnyClient {
         Ok(ClientCertVerified::assertion())
     }
     fn verify_tls12_signature(
-        &self, _message: &[u8], _cert: &CertificateDer, _dss: &DigitallySignedStruct
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer,
+        _dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        Ok(HandshakeSignatureValid::assertion())
+        Err(PeerIncompatibleError(
+            PeerIncompatible::Tls13RequiredForQuic,
+        ))
     }
     fn verify_tls13_signature(
-        &self, _message: &[u8], _cert: &CertificateDer, _dss: &DigitallySignedStruct
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer,
+        _dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        Ok(HandshakeSignatureValid::assertion())
+        verify_tls13_signature_with_raw_key(
+            _message,
+            &SubjectPublicKeyInfoDer::from(_cert.as_ref()),
+            _dss,
+            &ED25519_ONLY,
+        )
     }
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        vec![
-            SignatureScheme::ED25519
-        ]
+        vec![SignatureScheme::ED25519]
     }
     fn root_hint_subjects(&self) -> &[DistinguishedName] {
         &[]
@@ -58,15 +64,25 @@ impl ClientCertVerifier for AcceptAnyClient {
     fn client_auth_mandatory(&self) -> bool {
         true
     }
+    fn requires_raw_public_keys(&self) -> bool {
+        true
+    }
 }
 
-pub async fn run_server(listen_addr: SocketAddr, key_path: Option<&Path>, cert_path: Option<&Path>) -> Result<()> {    
+pub async fn run_server(
+    listen_addr: SocketAddr,
+    key_path: Option<&Path>,
+    cert_path: Option<&Path>,
+) -> Result<()> {
     let server_rpk = make_rpk(key_path, cert_path, "server.key", "server.crt")?;
-    println!("server ‣ my id {}", hex_encode(Sha256::digest(&server_rpk.cert[0])));
-    
+    println!(
+        "server ‣ my id {}",
+        hex_encode(Sha256::digest(&server_rpk.cert[0]))
+    );
+
     let tls = ServerConfig::builder()
         .with_client_cert_verifier(Arc::new(AcceptAnyClient))
-        .with_cert_resolver(Arc::new(OneRpk(server_rpk)));
+        .with_cert_resolver(Arc::new(AlwaysResolvesServerRawPublicKeys::new(server_rpk)));
     let crypto = QuicServerConfig::try_from(Arc::new(tls)).unwrap();
     let cfg = QuinnServerConfig::with_crypto(Arc::new(crypto));
 
@@ -78,7 +94,10 @@ pub async fn run_server(listen_addr: SocketAddr, key_path: Option<&Path>, cert_p
             let conn = connecting.await.expect("handshake failed");
             if let Some(arc_any) = conn.peer_identity() {
                 if let Some(certs) = arc_any.downcast_ref::<Vec<CertificateDer>>() {
-                    println!("server ‣ client id {}", hex_encode(Sha256::digest(certs[0].as_ref())));
+                    println!(
+                        "server ‣ client id {}",
+                        hex_encode(Sha256::digest(certs[0].as_ref()))
+                    );
                 }
             }
 
