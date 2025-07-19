@@ -50,6 +50,9 @@ impl ClientCertVerifier for AcceptAnyClient {
     fn client_auth_mandatory(&self) -> bool {
         true
     }
+    fn requires_raw_public_keys(&self) -> bool {
+        true
+    }
 }
 
 pub async fn run_server(listen_addr: SocketAddr, key_path: Option<&Path>, cert_path: Option<&Path>) -> Result<()> {    

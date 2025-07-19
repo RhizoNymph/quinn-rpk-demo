@@ -65,6 +65,9 @@ impl ServerCertVerifier for AcceptAny {
             SignatureScheme::ED25519
         ]
     }
+    fn requires_raw_public_keys(&self) -> bool {
+        true
+    }
 }
 
 pub async fn run_client(server_addr: SocketAddr, key_path: Option<&Path>, cert_path: Option<&Path>) -> Result<()> {
