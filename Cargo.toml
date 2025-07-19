@@ -18,3 +18,4 @@ rustls  = { version = "0.23.8", default-features = false, features = ["ring", "s
 # only to generate an Ed25519 key quickly
 rcgen   = { version = "0.13", default-features = false, features = ["ring"] }
 clap = { version = "4.5.40", features = ["derive"] }
+rustls-webpki = "0.103.4"
